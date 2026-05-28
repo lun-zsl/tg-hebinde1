@@ -8,7 +8,7 @@ from flask_cors import CORS
 from telethon import TelegramClient
 from telethon.errors import UserPrivacyRestrictedError, UserAlreadyParticipantError, FloodWaitError, SessionPasswordNeededError
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest, InviteToChannelRequest
-from telethon.tl.types import UserStatusOnline, UserStatusOffline, UserStatusRecently
+from telethon.tl.types import UserStatusOnline, UserStatusRecently, UserStatusOffline
 
 app = Flask(__name__, template_folder='.') 
 CORS(app)
@@ -27,12 +27,9 @@ def run_async_safe(coro):
     return future.result()
 # ===============================================================
 
-# 全局变量与任务状态机控制
 client = None
 phone_code_hashes = {}  
-system_logs = "【系统通知】全自动活人采集系统就绪...\n"
-
-# 任务控制状态：'running' (运行中), 'paused' (暂停中), 'stopped' (停止)
+system_logs = "【金字塔真人版】多群联合精准采集强拉系统已就绪...\n"
 job_status = "stopped" 
 
 def append_log(text):
@@ -108,10 +105,8 @@ def login():
 
 @app.route('/api/control_job', methods=['POST'])
 def control_job():
-    """接收前端发来的 暂停/继续/停止 指令"""
     global job_status
     action = request.json.get('action')
-    
     if action == "pause":
         job_status = "paused"
         append_log("⏸️ 【任务暂停】拉人已暂停，保持当前进度，随时可以恢复...")
@@ -124,7 +119,6 @@ def control_job():
         job_status = "stopped"
         append_log("🛑 【强制停止】正在强制终止后台脚本并执行退群清理...")
         return jsonify({"status": "success", "message": "正在强行终止..."})
-    
     return jsonify({"status": "error", "message": "未知指令"})
 
 @app.route('/api/start_job', methods=['POST'])
@@ -139,7 +133,7 @@ def start_job():
         return jsonify({"status": "error", "message": "Telegram 账号未登录！"})
 
     job_status = "running"
-    append_log(f"【任务启动】目标群: {target_group} | 限制最高拉取: {pull_count} 人")
+    append_log(f"【金字塔任务启动】目标群: {target_group} | 目标活人数量: {pull_count} 人")
     
     async def _do_pull_job():
         global job_status
@@ -155,7 +149,6 @@ def start_job():
                 target_entity = await client.get_input_entity(target_group)
 
             pulled_today = 0
-            three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
 
             for src_group in source_groups:
                 src_group = src_group.strip()
@@ -170,87 +163,87 @@ def start_job():
                 except Exception:
                     src_entity = await client.get_input_entity(src_group)
 
-                append_log(f" 🔍 开始扫描【{src_group}】中的【活跃真人】...")
+                append_log(f" 🔍 正在高速榨取【{src_group}】并过滤留存【离线1-3天内及在线】的高活跃成员...")
                 
-                # 2. 遍历采集群成员
-                async for user in client.iter_participants(src_entity, limit=500):
-                    # 【随时暂停/停止的核心拦截器】
-                    while job_status == "paused":
-                        await asyncio.sleep(2) # 如果状态是暂停，后台就在这里空转等待
-                    if job_status == "stopped" or pulled_today >= pull_count:
-                        break
-                    
+                # 动态刷新生死线（每次循环重新计算，防止长时间任务产生时差误差）
+                three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
+                active_users_pool = []
+                
+                # 在内存中清洗并抓取成员
+                async for user in client.iter_participants(src_entity, limit=1000):
                     if user.bot or not user.username:
                         continue
                     
-                    # 💡 【高阶真人筛选机制】：判断在线状态
-                    is_active_user = False
+                    is_qualified = False
                     if isinstance(user.status, UserStatusOnline):
-                        is_active_user = True  # 当前在线，绝对是真人
+                        is_qualified = True  # 第一优先级：当前在线
                     elif isinstance(user.status, UserStatusRecently):
-                        is_active_user = True  # 最近刚上线，活人
-                    elif isinstance(user.status, UserStatusOffline):
-                        # 如果离线，判断最后上线时间是否在 3 天内
-                        if user.status.was_online and user.status.was_online > three_days_ago:
-                            is_active_user = True
+                        is_qualified = True  # 第二优先级：近期上线
+                    elif isinstance(user.status, UserStatusOffline) and user.status.was_online:
+                        # 第三优先级：离线但在 3 天以内活跃过
+                        if user.status.was_online >= three_days_ago:
+                            is_qualified = True
                     
-                    if not is_active_user:
-                        continue # 僵尸号、长达一周/一个月不上线的人直接过滤跳过
+                    if is_qualified:
+                        active_users_pool.append(user)
 
-                    # 3. 执行强行拉人
+                # 按照金字塔层级规则对留存活人精准排序（在线 ➔ 近期 ➔ 离线1-3天内按时间倒序）
+                def sort_rule(u):
+                    if isinstance(u.status, UserStatusOnline): return (0, 0)
+                    if isinstance(u.status, UserStatusRecently): return (1, 0)
+                    return (2, -u.status.was_online.timestamp())
+
+                active_users_pool.sort(key=sort_rule)
+                append_log(f" ✨ 清洗完毕！已精准剥离 3 天以外死粉。当前队列留存真活人: {len(active_users_pool)} 个，启动强拉...")
+
+                # 2. 开始按金字塔活人序列强拉
+                for user in active_users_pool:
+                    # 暂停/停止控制核心拦截器
+                    while job_status == "paused":
+                        await asyncio.sleep(1)
+                    if job_status == "stopped" or pulled_today >= pull_count:
+                        break
+                    
+                    status_lbl = ""
+                    if isinstance(user.status, UserStatusOnline): 
+                        status_lbl = "⚡ 当前在线"
+                    elif isinstance(user.status, UserStatusRecently): 
+                        status_lbl = "🥈 近期上线"
+                    else: 
+                        status_lbl = f"🥉 1-3天内活跃({user.status.was_online.strftime('%m-%d %H:%M')})"
+
                     try:
-                        append_log(f" [活跃真人] 发现! 正在把 @{user.username} 强行拉入群组...")
+                        append_log(f" 正在强拉【{status_lbl}】真人: @{user.username} ...")
                         await client(InviteToChannelRequest(target_entity, [user]))
                         pulled_today += 1
-                        append_log(f" 🟢 成功拉入 [ @{user.username} ] ！当前成功累计: {pulled_today} / {pull_count} 人")
+                        append_log(f" 🟢 成功拉入: [ @{user.username} ] ！当前总进度: {pulled_today} / {pull_count}")
                         
                         if pulled_today >= pull_count:
-                            append_log(" 目标拉取数量已达成，完美完成任务！")
+                            append_log(" 目标强拉额度已全额达成！")
                             job_status = "stopped"
                             break
 
-                        # ⏳ 【满足您的要求】：每拉一个人休息 30 到 40 秒之间的随机时间
+                        # 每拉一个人休息 30 到 40 秒之间的随机时间
                         sleep_time = random.randint(30, 40)
-                        append_log(f" 💤 安全防封防检测：原地休眠 {sleep_time} 秒...")
+                        append_log(f" 💤 正在进行安全休眠 {sleep_time} 秒...")
                         
-                        # 在休眠期间，也要允许响应暂停或停止
+                        # 细粒度可中断休眠器
                         for _ in range(sleep_time):
-                            if job_status == "stopped": break
-                            while job_status == "paused": await asyncio.sleep(1)
+                            if job_status == "stopped": 
+                                break
+                            while job_status == "paused": 
+                                await asyncio.sleep(1)
                             await asyncio.sleep(1)
 
                     except UserPrivacyRestrictedError:
-                        append_log(f"❌ 拒绝：@{user.username} 开启了防陌生人拉群限制。")
+                        append_log(f"❌ 失败：@{user.username} 开启了隐私保护。")
                     except UserAlreadyParticipantError:
-                        append_log(f"💡 提示：@{user.username} 本来就在群里。")
+                        append_log(f"💡 提示：@{user.username} 已经在目的地群了。")
                     except FloodWaitError as e:
-                        append_log(f"⚠️ 触发风控：操作过快，官方要求强行休眠 {e.seconds} 秒...")
+                        append_log(f"⚠️ 触发风控：官方拒绝强拉，要求强制等待 {e.seconds} 秒。正在硬抗等待...")
                         await asyncio.sleep(e.seconds)
                     except Exception as e_user:
                         if "Too many requests" in str(e_user):
-                            append_log("❌ 严重错误：当前账号今日额度已死，立即终止！")
-                            job_status = "stopped"
-                            break
-                        append_log(f"❌ 拉人失败: {str(e_user)}")
-                        await asyncio.sleep(5)
-
-            append_log(" 所有群组扫描采集结束。")
-        except Exception as e:
-            append_log(f"【后台异常】{str(e)}")
-        finally:
-            # 4. 全自动无痕退群清理机制
-            append_log("🧹 任务状态结束，正在为您自动清理退群...")
-            for group_entity in joined_groups:
-                try:
-                    await client(LeaveChannelRequest(group_entity))
-                    await asyncio.sleep(1.5)
-                except Exception:
-                    pass
-            append_log("✨ 所有临时加入的采集群和目的群已全部无痕安全退出。")
-            job_status = "stopped"
-
-    asyncio.run_coroutine_threadsafe(_do_pull_job(), telethon_loop)
-    return jsonify({"status": "success", "message": "全自动活人采集任务已提交至后台！"})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+                            append_log("🚨 [额度死限] 触发官方死限！硬抗休眠 120 秒后继续冲锋...")
+                            # 120秒死磕级休眠同样支持秒级中断检测
+                            for _ in range(120):
