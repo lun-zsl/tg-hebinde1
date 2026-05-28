@@ -13,6 +13,7 @@
         .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
         .btn-blue { background-color: #007bff; color: white; }
         .btn-green { background-color: #28a745; color: white; }
+        .btn-yellow { background-color: #ffc107; color: #111; } /* 新增：暂停按钮精致黄色 */
         .btn-red { background-color: #dc3545; color: white; }
         .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 15px; min-height: 150px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
         .flex-box { display: flex; gap: 10px; }
@@ -48,9 +49,12 @@
     <input type="number" id="pull_count" placeholder="要拉取的数量" value="100">
     <textarea id="source_groups" rows="3" placeholder="采集群 (一行一个群链接)"></textarea>
 
-    <div class="flex-box">
-        <button class="btn btn-green" onclick="startJob()">⚠️ 开始运行</button>
-        <button class="btn btn-red" onclick="alert('任务已尝试停止')">🛑 停止运行</button>
+    <!-- 升级版控制区域：完美平铺，四档操控 -->
+    <div class="flex-box" style="flex-wrap: wrap;">
+        <button class="btn btn-green" onclick="startJob()" style="width: 47%; margin-bottom: 8px;">⚠️ 开始运行</button>
+        <button class="btn btn-yellow" onclick="controlJob('pause')" style="width: 47%; margin-bottom: 8px;">⏸️ 暂停拉人</button>
+        <button class="btn btn-blue" onclick="controlJob('resume')" style="width: 47%;">▶️ 继续拉人</button>
+        <button class="btn btn-red" onclick="controlJob('stop')" style="width: 47%;">🛑 强行终止</button>
     </div>
 
     <div class="section-title">📊 实时监控日志面板:</div>
@@ -86,10 +90,7 @@
             });
             let data = await res.json();
             
-            // 弹出后端返回的信息
             alert(data.message || "请求已发送");
-
-            // 显示隐藏的验证码与两步验证输入区域
             document.getElementById('login_fields_area').classList.remove('hidden');
         } catch (error) {
             alert("发送失败，请检查后端服务是否正常运行。");
@@ -106,7 +107,7 @@
             body: JSON.stringify({
                 phone: document.getElementById('phone').value,
                 code: document.getElementById('login_code').value,
-                password: document.getElementById('password').value // 传给后端的两步验证密码
+                password: document.getElementById('password').value 
             })
         });
         let data = await res.json();
@@ -125,6 +126,21 @@
         });
         let data = await res.json();
         alert(data.message);
+    }
+
+    // 新增：任务调度控制（发送 暂停/恢复/终止 指令给后端）
+    async function controlJob(action) {
+        try {
+            let res = await fetch('/api/control_job', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: action })
+            });
+            let data = await res.json();
+            alert(data.message);
+        } catch (error) {
+            alert("指令下发失败，请确认后端已打上最新修补补丁！");
+        }
     }
 </script>
 
