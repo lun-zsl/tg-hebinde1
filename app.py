@@ -139,7 +139,6 @@ def start_job():
         global job_status
         joined_groups = []
         try:
-            # 1. 自动进入目的地群组
             try:
                 target_entity = await client.get_input_entity(target_group)
                 await client(JoinChannelRequest(target_entity))
@@ -165,29 +164,25 @@ def start_job():
 
                 append_log(f" 🔍 正在高速榨取【{src_group}】并过滤留存【离线1-3天内及在线】的高活跃成员...")
                 
-                # 动态刷新生死线（每次循环重新计算，防止长时间任务产生时差误差）
                 three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
                 active_users_pool = []
                 
-                # 在内存中清洗并抓取成员
                 async for user in client.iter_participants(src_entity, limit=1000):
                     if user.bot or not user.username:
                         continue
                     
                     is_qualified = False
                     if isinstance(user.status, UserStatusOnline):
-                        is_qualified = True  # 第一优先级：当前在线
+                        is_qualified = True
                     elif isinstance(user.status, UserStatusRecently):
-                        is_qualified = True  # 第二优先级：近期上线
+                        is_qualified = True
                     elif isinstance(user.status, UserStatusOffline) and user.status.was_online:
-                        # 第三优先级：离线但在 3 天以内活跃过
                         if user.status.was_online >= three_days_ago:
                             is_qualified = True
                     
                     if is_qualified:
                         active_users_pool.append(user)
 
-                # 按照金字塔层级规则对留存活人精准排序（在线 ➔ 近期 ➔ 离线1-3天内按时间倒序）
                 def sort_rule(u):
                     if isinstance(u.status, UserStatusOnline): return (0, 0)
                     if isinstance(u.status, UserStatusRecently): return (1, 0)
@@ -196,9 +191,7 @@ def start_job():
                 active_users_pool.sort(key=sort_rule)
                 append_log(f" ✨ 清洗完毕！已精准剥离 3 天以外死粉。当前队列留存真活人: {len(active_users_pool)} 个，启动强拉...")
 
-                # 2. 开始按金字塔活人序列强拉
                 for user in active_users_pool:
-                    # 暂停/停止控制核心拦截器
                     while job_status == "paused":
                         await asyncio.sleep(1)
                     if job_status == "stopped" or pulled_today >= pull_count:
@@ -223,11 +216,9 @@ def start_job():
                             job_status = "stopped"
                             break
 
-                        # 每拉一个人休息 30 到 40 秒之间的随机时间
                         sleep_time = random.randint(30, 40)
                         append_log(f" 💤 正在进行安全休眠 {sleep_time} 秒...")
                         
-                        # 细粒度可中断休眠器
                         for _ in range(sleep_time):
                             if job_status == "stopped": 
                                 break
@@ -245,5 +236,32 @@ def start_job():
                     except Exception as e_user:
                         if "Too many requests" in str(e_user):
                             append_log("🚨 [额度死限] 触发官方死限！硬抗休眠 120 秒后继续冲锋...")
-                            # 120秒死磕级休眠同样支持秒级中断检测
                             for _ in range(120):
+                                if job_status == "stopped": 
+                                    break
+                                while job_status == "paused": 
+                                    await asyncio.sleep(1)
+                                await asyncio.sleep(1)
+                        else:
+                            append_log(f"❌ 强拉中途受阻: {str(e_user)}")
+                            await asyncio.sleep(5)
+
+            append_log(" 所有指定的采集源群组已全量清洗剥离完毕。")
+        except Exception as e:
+            append_log(f"【严重后台异常】{str(e)}")
+        finally:
+            append_log("🧹 任务状态结束，正在为您自动清理退群...")
+            for group_entity in joined_groups:
+                try:
+                    await client(LeaveChannelRequest(group_entity))
+                    await asyncio.sleep(1.5)
+                except Exception:
+                    pass
+            append_log("✨ 所有临时加的群已自动无痕退出。")
+            job_status = "stopped"
+
+    asyncio.run_coroutine_threadsafe(_do_pull_job(), telethon_loop)
+    return jsonify({"status": "success", "message": "金字塔高活跃精准强拉任务已提交后台！"})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False)
