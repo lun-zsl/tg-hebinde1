@@ -33,7 +33,7 @@
     <input type="text" id="phone" placeholder="操作账号手机号 (带国家码如 +86...)">
     
     <!-- 发送验证码按钮 -->
-    <button class="btn btn-blue" id="send_btn" onclick="sendCode()">⚡ 发送验证码</button>
+    <button class="btn btn-blue" id="send_btn" onclick="sendCode()">⚡ 获取验证码</button>
 
     <!-- 验证与登录区域：默认隐藏，发送成功后展开 -->
     <div id="login_fields_area" class="login-area hidden">
@@ -128,118 +128,5 @@
     }
 </script>
 
-</body>
-</html>
-    <script>
-        // 缓存 Telegram 握手需要的流水号
-        let savedPhoneCodeHash = "";
-
-        // 1. 点击发送验证码的逻辑
-        async function executeSendCode() {
-            const api_id = document.getElementById('api_id').value;
-            const api_hash = document.getElementById('api_hash').value;
-            const phone = document.getElementById('phone').value;
-
-            if (!api_id || !api_hash || !phone) {
-                alert("提示：请先完整填写 APL_ID、APL_HASH 和操作手机号！");
-                return;
-            }
-
-            const btn = document.getElementById('btnSendCode');
-            btn.innerText = "正在请求...";
-            btn.disabled = true;
-
-            try {
-                const response = await fetch('/api/send_code', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ api_id, api_hash, phone })
-                });
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    savedPhoneCodeHash = data.phone_code_hash;
-                    // 🌟 核心控制：发送成功，解除隐藏状态，展现输入框和密码验证框
-                    document.getElementById('authDynamicZone').style.display = 'block';
-                    alert("验证码发送成功！请查看 Telegram 并输入验证码。");
-                } else {
-                    alert("发送失败: " + data.message);
-                }
-            } catch (err) {
-                console.error(err);
-                alert("网络请求异常，请确认后端 Flask 正在运行");
-            } finally {
-                btn.innerText = "⚡ 发送验证码";
-                btn.disabled = false;
-            }
-        }
-
-        // 2. 点击确认登录的逻辑
-        async function executeLogin() {
-            const phone = document.getElementById('phone').value;
-            const code = document.getElementById('code').value;
-            const password = document.getElementById('password').value;
-
-            if (!code) {
-                alert("请输入验证码！");
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        phone: phone,
-                        code: code,
-                        password: password,
-                        phone_code_hash: savedPhoneCodeHash
-                    })
-                });
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    alert("系统登录成功，客户端已成功连接！");
-                    // 登录成功后可选择自动收起隐藏框
-                    document.getElementById('authDynamicZone').style.display = 'none';
-                } else if (data.status === 'need_password') {
-                    alert(data.message);
-                } else {
-                    alert("连接失败: " + data.message);
-                }
-            } catch (err) {
-                console.error(err);
-                alert("登录连接请求失败");
-            }
-        }
-
-        // 3. 轮询同步控制台日志
-        async function syncLogsFromServer() {
-            try {
-                const response = await fetch('/api/get_logs');
-                const data = await response.json();
-                const logConsole = document.getElementById('logConsole');
-                
-                // 重刷日志区
-                logConsole.innerHTML = "";
-                data.logs.forEach(text => {
-                    const node = document.createElement('div');
-                    node.innerText = text;
-                    logConsole.appendChild(node);
-                });
-                
-                // 让滚动条始终粘滞在最底部
-                logConsole.scrollTop = logConsole.scrollHeight;
-            } catch (err) {
-                // 静默失败，避免轮询报错打扰用户
-                console.debug("日志刷新失败:", err);
-            }
-        }
-
-        // 设定每 2 秒自动向后端同步一次控制台数据
-        setInterval(syncLogsFromServer, 2000);
-        // 初始化时立即执行一次加载
-        syncLogsFromServer();
-    </script>
 </body>
 </html>
