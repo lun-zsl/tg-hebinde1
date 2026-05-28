@@ -13,12 +13,11 @@
         .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
         .btn-blue { background-color: #007bff; color: white; }
         .btn-green { background-color: #28a745; color: white; }
-        .btn-yellow { background-color: #ffc107; color: #111; } /* 新增：暂停按钮精致黄色 */
+        .btn-yellow { background-color: #ffc107; color: #111; } 
         .btn-red { background-color: #dc3545; color: white; }
         .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 15px; min-height: 150px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
         .flex-box { display: flex; gap: 10px; }
         
-        /* 新增：隐藏样式的控制类 */
         .hidden { display: none !important; }
         .login-area { width: 100%; display: flex; flex-direction: column; background: #2d2d2d; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #555; }
     </style>
@@ -33,10 +32,8 @@
     <input type="text" id="api_hash" placeholder="API_HASH">
     <input type="text" id="phone" placeholder="操作账号手机号 (带国家码如 +86...)">
     
-    <!-- 发送验证码按钮 -->
     <button class="btn btn-blue" id="send_btn" onclick="sendCode()">⚡ 获取验证码</button>
 
-    <!-- 验证与登录区域：默认隐藏，发送成功后展开 -->
     <div id="login_fields_area" class="login-area hidden">
         <div style="font-size: 12px; color: #ffc107; margin-bottom: 8px;">⚠️ 请检查 Telegram App 接收到的验证代码：</div>
         <input type="text" id="login_code" placeholder="请输入 5 位数字验证码">
@@ -49,7 +46,6 @@
     <input type="number" id="pull_count" placeholder="要拉取的数量" value="100">
     <textarea id="source_groups" rows="3" placeholder="采集群 (一行一个群链接)"></textarea>
 
-    <!-- 升级版控制区域：完美平铺，四档操控 -->
     <div class="flex-box" style="flex-wrap: wrap;">
         <button class="btn btn-green" onclick="startJob()" style="width: 47%; margin-bottom: 8px;">⚠️ 开始运行</button>
         <button class="btn btn-yellow" onclick="controlJob('pause')" style="width: 47%; margin-bottom: 8px;">⏸️ 暂停拉人</button>
@@ -62,10 +58,13 @@
 </div>
 
 <script>
+    // 💡 核心机制：自动绑定当前云端访问的真实主域名，彻底抛弃本地 localhost 导致的指令下发失败问题
+    const API_BASE = window.location.origin;
+
     // 自动定时刷新日志
     setInterval(async () => {
         try {
-            let res = await fetch('/api/get_logs');
+            let res = await fetch(`${API_BASE}/api/get_logs`);
             let data = await res.json();
             let logPanel = document.getElementById('log_panel');
             logPanel.innerText = data.logs;
@@ -79,7 +78,7 @@
         sendBtn.disabled = true;
 
         try {
-            let res = await fetch('/api/send_code', {
+            let res = await fetch(`${API_BASE}/api/send_code`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -101,7 +100,7 @@
     }
 
     async function login() {
-        let res = await fetch('/api/login', {
+        let res = await fetch(`${API_BASE}/api/login`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -115,7 +114,7 @@
     }
 
     async function startJob() {
-        let res = await fetch('/api/start_job', {
+        let res = await fetch(`${API_BASE}/api/start_job`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -128,10 +127,9 @@
         alert(data.message);
     }
 
-    // 新增：任务调度控制（发送 暂停/恢复/终止 指令给后端）
     async function controlJob(action) {
         try {
-            let res = await fetch('/api/control_job', {
+            let res = await fetch(`${API_BASE}/api/control_job`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ action: action })
@@ -139,7 +137,7 @@
             let data = await res.json();
             alert(data.message);
         } catch (error) {
-            alert("指令下发失败，请确认后端已打上最新修补补丁！");
+            alert("指令下发失败，请确认后端已打上最新修补补丁并且处于运行状态！");
         }
     }
 </script>
