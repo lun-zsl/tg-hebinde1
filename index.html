@@ -1,108 +1,109 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>云端多群联合采集拉人系统 (通用商用版)</title>
-<style>
-:root {
---bg-color: #121212;
---panel-bg: #1e1e1e;
---input-bg: #2d2d2d;
---text-color: #e0e0e0;
---primary-green: #00e676;
---danger-red: #ff5252;
---warning-orange: #ff9100;
-}
-body { margin: 0; padding: 15px; background-color: var(--bg-color); color: var(--text-color); font-family: -apple-system, sans-serif; }
-.container { max-width: 600px; margin: 0 auto; background: var(--panel-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); }
-h2 { text-align: center; margin-top: 0; color: #fff; font-size: 18px; border-bottom: 1px solid #333; padding-bottom: 15px; letter-spacing: 1px; }
-.section { margin-bottom: 20px; padding: 15px; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px solid #333; }
-.section-title { font-size: 14px; color: #fff; margin-bottom: 12px; font-weight: bold; }
-.form-group { margin-bottom: 15px; }
-label { display: block; font-size: 14px; margin-bottom: 8px; color: #bbb; font-weight: bold; }
-input, textarea { width: 100%; padding: 14px; background: var(--input-bg); border: 1px solid #333; border-radius: 8px; color: #fff; box-sizing: border-box; margin-bottom: 10px; font-size: 15px; transition: all 0.3s; }
-input:focus, textarea:focus { outline: none; border-color: var(--primary-green); background: #333; }
-textarea { height: 140px; resize: none; line-height: 1.5; }
-.hint-text { font-size: 13px; color: #888; margin: -5px 0 15px 0; }
-.btn-group { display: flex; gap: 12px; width: 100%; box-sizing: border-box; margin-top: 10px; }
-.btn { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; }
-.btn-green { background-color: var(--primary-green); color: #000; }
-.btn-red { background-color: var(--danger-red); color: #fff; }
-.hidden { display: none !important; }
-.log-panel { background: #0a0a0a; border: 1px solid #222; border-radius: 8px; height: 180px; overflow-y: auto; padding: 12px; font-family: monospace; font-size: 13px; line-height: 1.6; margin-top: 10px; }
-.log-line { margin: 0 0 5px 0; white-space: pre-wrap; word-break: break-all; }
-.log-success { color: #4caf50; }
-.log-warning { color: var(--warning-orange); }
-.log-error { color: var(--danger-red); }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>云端多群联合采集拉人系统</title>
+    <style>
+        body { background-color: #1a1a1a; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 500px; background: #262626; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        h2 { text-align: center; font-size: 18px; color: #e0e0e0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .section-title { font-size: 14px; color: #aaa; margin-top: 15px; margin-bottom: 8px; display: flex; align-items: center; }
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 12px; background: #333; border: 1px solid #444; border-radius: 4px; color: #fff; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .btn-blue { background-color: #007bff; color: white; }
+        .btn-green { background-color: #28a745; color: white; }
+        .btn-red { background-color: #dc3545; color: white; }
+        .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 15px; min-height: 150px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
+        .flex-box { display: flex; gap: 10px; }
+    </style>
 </head>
 <body>
+
 <div class="container">
-<h2>云端多群联合采集拉人系统 (通用商用版)</h2>
-<!-- 🔑 凭证输入与鉴权模块 -->
-<div class="section">
-<div class="section-title">🔑 专属开发者凭证配置</div>
-<div id="login-step-1" class="form-group">
-<label>API_ID (从 my.telegram.org 获取)</label>
-<input type="number" id="api_id" value="38906005" placeholder="例如: 38906005">
-<label>API_HASH</label>
-<input type="text" id="api_hash" value="9c4a2467d94a3d88818309c8b80ea183" placeholder="输入你的 32 位 api_hash">
-<label>操作号手机号 (纯数字紧凑格式)</label>
-<input type="text" id="phone" value="+2347064991293" placeholder="带国家码如 +2347064991293">
-<button style="margin-top: 8px;" class="btn btn-green" id="btn-send-code">🚀 发送验证码</button>
+    <h2>云端多群联合采集拉人系统 (通用商用版)</h2>
+    
+    <div class="section-title">🔑 专属开发者凭证配置</div>
+    <input type="text" id="api_id" placeholder="API_ID">
+    <input type="text" id="api_hash" placeholder="API_HASH">
+    <input type="text" id="phone" placeholder="操作账号手机号 (带国家码如 +86...)">
+    
+    <div class="flex-box">
+        <button class="btn btn-blue" onclick="sendCode()">⚡ 发送验证码</button>
+        <input type="text" id="login_code" placeholder="输入验证码" style="margin-bottom: 10px;">
+        <button class="btn btn-green" onclick="login()" style="width: 40%;">确认登录</button>
+    </div>
+
+    <div class="section-title">🎯 拉人任务分配</div>
+    <input type="text" id="target_group" placeholder="你的目的地群组链接">
+    <input type="number" id="pull_count" placeholder="要拉取的数量" value="100">
+    <textarea id="source_groups" rows="3" placeholder="采集群 (一行一个群链接)"></textarea>
+
+    <div class="flex-box">
+        <button class="btn btn-green" onclick="startJob()">⚠️ 开始运行</button>
+        <button class="btn btn-red" onclick="alert('任务已尝试停止')">🛑 停止运行</button>
+    </div>
+
+    <div class="section-title">📊 实时监控日志面板:</div>
+    <div class="log-panel" id="log_panel">正在准备就绪，等待下达参数指令...</div>
 </div>
-<div id="login-step-2" class="form-group hidden">
-<input type="text" id="code" placeholder="输入 5 位验证码">
-<input type="password" id="2fa-pwd" placeholder="两步验证密码 (若无则不填)" style="margin-top:8px;">
-<div class="btn-group">
-<button class="btn" style="background-color:#444; color:#fff;" id="btn-back">返回</button>
-<button class="btn btn-green" id="btn-verify">确认验证登录</button>
-</div>
-</div>
-</div>
-<!-- 🎯 商业控制界面 -->
-<div class="section">
-<div class="section-title">🎯 拉人任务分配</div>
-<div class="form-group">
-<label>你的目的地群组链接</label>
-<input type="text" id="target_group" value="https://t.me">
-</div>
-<div class="form-group">
-<label>要拉取的数量</label>
-<input type="number" id="pull_count" value="100">
-</div>
-<div class="form-group">
-<label>采集群 (一行放一个群)</label>
-<textarea id="source_groups" placeholder="https://t.me"></textarea>
-</div>
-<div class="btn-group">
-<button id="btn-start" class="btn btn-green">🔥 开始运行</button>
-<button id="btn-stop" class="btn btn-red">🛑 停止运行</button>
-</div>
-</div>
-<!-- 📊 动态日志监视器 -->
-<div class="section">
-<div class="section-title">📊 实时监控流日志面板：</div>
-<div class="log-panel" id="log-container">
-<div id="log-empty" style="color: #555; text-align: center; margin-top: 70px;">后端挂载就绪，等待下发开跑指令...</div>
-</div>
-</div>
-</div>
+
 <script>
-// 🌟 自动化智能握手路由：精准切入当前本机的后端 8000 端口
-const API_BASE = window.location.origin.replace("-8000.app.github.dev", "").replace(".github.dev", "") + "-8000.app.github.dev";
+    // 自动定时刷新日志
+    setInterval(async () => {
+        try {
+            let res = await fetch('/api/get_logs');
+            let data = await res.json();
+            let logPanel = document.getElementById('log_panel');
+            logPanel.innerText = data.logs;
+            logPanel.scrollTop = logPanel.scrollHeight; // 滚动到最底部
+        } catch(e) {}
+    }, 2000);
 
+    async function sendCode() {
+        let res = await fetch('/api/send_code', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                api_id: document.getElementById('api_id').value,
+                api_hash: document.getElementById('api_hash').value,
+                phone: document.getElementById('phone').value
+            })
+        });
+        let data = await res.json();
+        alert(data.message);
+    }
 
-const nodes = {
-step1: document.getElementById('login-step-1'),
-step2: document.getElementById('login-step-2'),
-apiId: document.getElementById('api_id'),
-apiHash: document.getElementById('api_hash'),
-phone: document.getElementById('phone'),
-code: document.getElementById('code'),
-pwd2fa: document.getElementById('2fa-pwd'),
-targetGroup: document.getElementById('target_group'),
+    async function login() {
+        let res = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                phone: document.getElementById('phone').value,
+                code: document.getElementById('login_code').value
+            })
+        });
+        let data = await res.json();
+        alert(data.message);
+    }
+
+    async function startJob() {
+        let res = await fetch('/api/start_job', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                target_group: document.getElementById('target_group').value,
+                pull_count: document.getElementById('pull_count').value,
+                source_groups: document.getElementById('source_groups').value
+            })
+        });
+        let data = await res.json();
+        alert(data.message);
+    }
+</script>
+
+</body>
+</html>
 pullCount: document.getElementById('pull_count'),
 sources: document.getElementById('source_groups'),
 btnSendCode: document.getElementById('btn-send-code'),
