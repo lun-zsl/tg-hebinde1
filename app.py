@@ -1,5 +1,6 @@
 import os
 import asyncio
+import threading
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from telethon import TelegramClient
@@ -8,30 +9,33 @@ from telethon.errors import UserPrivacyRestrictedError, UserAlreadyParticipantEr
 app = Flask(__name__, template_folder='.') 
 CORS(app)
 
-# 全局变量，用来存储 Telegram 客户端实例和日志
+# ==================== 核心：独立后台线程配置 ====================
+# 创建一个专门给 Telethon 用的专用异步事件循环
+telethon_loop = asyncio.new_event_loop()
+
+def start_telethon_loop():
+    """在独立的线程中永远运行这个事件循环"""
+    asyncio.set_event_loop(telethon_loop)
+    telethon_loop.run_forever()
+
+# 启动后台线程
+threading.Thread(target=start_telethon_loop, daemon=True).start()
+
+def run_async_safe(coro):
+    """安全地将异步任务提交到专门的后台线程中去执行，并等待结果"""
+    future = asyncio.run_coroutine_threadsafe(coro, telethon_loop)
+    return future.result() # 阻塞等待异步执行完毕并拿到返回值
+# ===============================================================
+
+# 全局变量
 client = None
-phone_code_hashes = {}  # 存储发送验证码后返回的哈希值，登录时需要用到
+phone_code_hashes = {}  
 system_logs = "【系统通知】后端服务已就绪...\n"
 
 def append_log(text):
     global system_logs
     system_logs += f"{text}\n"
     print(text)
-
-# 核心辅助函数：安全地在 Flask 线程中执行异步的 Telethon 任务
-def run_async(coro):
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    if loop.is_running():
-        # 如果当前事件循环在运行（Debug模式下常见），新建一个独立循环执行
-        new_loop = asyncio.new_event_loop()
-        return new_loop.run_until_complete(coro)
-    else:
-        return loop.run_until_complete(coro)
 
 @app.route('/')
 def index():
@@ -54,17 +58,16 @@ def send_code():
     
     async def _send():
         global client
-        # 每次创建新实例，避免旧实例残留的 Loop 状态导致冲突
-        client = TelegramClient(f'session_{phone}', int(api_id), api_hash)
+        # 注意：在独立循环中初始化 client 时，必须传入 loop 参数显式绑定
+        client = TelegramClient(f'session_{phone}', int(api_id), api_hash, loop=telethon_loop)
         await client.connect()
-        # 发送验证码，并获取重要的 phone_code_hash
         result = await client.send_code_request(phone)
         return result.phone_code_hash
 
     try:
-        # 使用安全的异步执行器
-        code_hash = run_async(_send())
-        phone_code_hashes[phone] = code_hash # 缓存这个 hash
+        # 通过安全的线程传输器运行
+        code_hash = run_async_safe(_send())
+        phone_code_hashes[phone] = code_hash 
         
         append_log(f"【验证码提示】已向手机号 {phone} 发送验证码，请在网页输入。")
         return jsonify({"status": "success", "message": "验证码发送成功，请注意查收"})
@@ -78,7 +81,7 @@ def login():
     data = request.json
     phone = data.get('phone')
     code = data.get('code')
-    password = data.get('password') # 接收前端传来的两步验证密码
+    password = data.get('password') 
     
     if not client:
         return jsonify({"status": "error", "message": "请先点击发送验证码"})
@@ -89,17 +92,15 @@ def login():
 
     async def _login():
         try:
-            # 尝试使用 验证码 进行登录
             await client.sign_in(phone=phone, code=code, phone_code_hash=code_hash)
         except SessionPasswordNeededError:
-            # 如果账号开启了“两步验证”，Telethon 会抛出这个异常
             if not password:
                 raise Exception("该账号开启了二步验证，请输入两步验证密码！")
-            # 传入密码进行二次验证登录
             await client.sign_in(password=password)
 
     try:
-        run_async(_login())
+        # 通过安全的线程传输器运行
+        run_async_safe(_login())
         append_log("【登录成功】账号已成功登录 Telegram！")
         return jsonify({"status": "success", "message": "登录成功"})
     except Exception as e:
@@ -119,5 +120,5 @@ def start_job():
     return jsonify({"status": "success", "message": "任务已启动"})
 
 if __name__ == '__main__':
-    # 提醒：在 Codespaces 下调试建议关闭 use_reloader=False 避免多进程引发冲突
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    # 彻底关闭 debug 模式，并在 Codespaces 下安全运行
+    app.run(host='0.0.0.0', port=5000, debug=False)
