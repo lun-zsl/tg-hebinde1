@@ -109,15 +109,75 @@ def login():
 
 @app.route('/api/start_job', methods=['POST'])
 def start_job():
+    global client
     data = request.json
     target_group = data.get('target_group')
-    pull_count = data.get('pull_count')
-    source_groups = data.get('source_groups')
+    pull_count = int(data.get('pull_count', 100))
+    source_groups = data.get('source_groups', '').split('\n') # 按行切分多个采集群
     
-    append_log(f"【任务启动】目标群: {target_group} | 数量: {pull_count}")
-    append_log("【提示】拉人核心逻辑正在后台准备执行...")
+    if not client:
+        return jsonify({"status": "error", "message": "错误：Telegram 账号未登录，请先登录！"})
+
+    append_log(f"【任务启动】目标群: {target_group} | 计划拉取数量: {pull_count}")
     
-    return jsonify({"status": "success", "message": "任务已启动"})
+    # 核心异步执行函数：在固定的后台线程里安全跑
+    async def _do_pull_job():
+        try:
+            from telethon.tl.functions.channels import InviteToChannelRequest
+            
+            # 1. 获取目的地群组权限实体
+            target_entity = await client.get_input_entity(target_group)
+            pulled_today = 0
+            
+            for src_group in source_groups:
+                src_group = src_group.strip()
+                if not src_group: 
+                    continue
+                
+                append_log(f" 正在从采集群【{src_group}】中获取成员列表...")
+                
+                # 2. 遍历采集群里的成员（限制每次最多扫 200 人）
+                async for user in client.iter_participants(src_group, limit=200):
+                    if pulled_today >= pull_count:
+                        append_log("【任务完成】已达到您设定的拉取数量目标，任务正常结束！")
+                        return
+                    
+                    # 自动过滤：不要机器人，不要没有设置用户名(username)的人
+                    if user.bot or not user.username:
+                        continue
+                        
+                    try:
+                        append_log(f" 正在尝试拉入用户: @{user.username} ...")
+                        
+                        # 3. 核心：发起拉人命令
+                        await client(InviteToChannelRequest(target_entity, [user]))
+                        
+                        pulled_today += 1
+                        append_log(f" 成功拉入 [ @{user.username} ] ！当前总计成功: {pulled_today} 人")
+                        
+                        # 4. 🚨 防封关键：拉完一个人强制休息 25 秒，防止被官方检测封号
+                        await asyncio.sleep(25) 
+                        
+                    except UserPrivacyRestrictedError:
+                        append_log(f"❌ 失败：用户 @{user.username} 开启了隐私保护，拒绝被陌生人拉群。")
+                    except UserAlreadyParticipantError:
+                        append_log(f"💡 提示：用户 @{user.username} 已经存在于目的地群了。")
+                    except FloodWaitError as e:
+                        append_log(f"⚠️ 触发官方频繁限制：操作速度过快！官方要求必须强制等待 {e.seconds} 秒...")
+                        await asyncio.sleep(e.seconds)
+                    except Exception as e_user:
+                        append_log(f"❌ 针对该用户拉取错误: {str(e_user)}")
+                        await asyncio.sleep(5) 
+                        
+            append_log(f"【任务结束】所有输入的采集群已全部扫描解析完毕，本次共成功拉入 {pulled_today} 人。")
+            
+        except Exception as e:
+            append_log(f"【致命错误】后台拉人任务意外中断: {str(e)}")
+
+    # 关键：不阻塞 Flask，直接把这个拉人循环任务抛进独立的 telethon_loop 线程去偷偷执行
+    asyncio.run_coroutine_threadsafe(_do_pull_job(), telethon_loop)
+    
+    return jsonify({"status": "success", "message": "拉人任务已在云端后台安全启动，请紧密观察监控面板！"})
 
 if __name__ == '__main__':
     # 彻底关闭 debug 模式，并在 Codespaces 下安全运行
