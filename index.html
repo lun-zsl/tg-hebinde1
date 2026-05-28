@@ -4,218 +4,215 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>云端多群联合采集拉人系统</title>
+    <!-- 引入 Tailwind CSS 快速构建与截图一致的暗黑系商用UI -->
+    <script src="https://jsdelivr.net"></script>
     <style>
-        body { background-color: #1a1a1a; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 500px; background: #262626; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        h2 { text-align: center; font-size: 18px; color: #e0e0e0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .section-title { font-size: 14px; color: #aaa; margin-top: 15px; margin-bottom: 8px; display: flex; align-items: center; }
-        input, textarea { width: 100%; padding: 10px; margin-bottom: 12px; background: #333; border: 1px solid #444; border-radius: 4px; color: #fff; box-sizing: border-box; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        .btn-blue { background-color: #007bff; color: white; }
-        .btn-green { background-color: #28a745; color: white; }
-        .btn-red { background-color: #dc3545; color: white; }
-        .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 15px; min-height: 150px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
-        .flex-box { display: flex; gap: 10px; }
+        /* 初始隐藏两步验证和验证码控制区 */
+        .hidden-auth-zone {
+            display: none;
+        }
     </style>
 </head>
-<body>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen flex items-center justify-center p-4">
 
-<div class="container">
-    <h2>云端多群联合采集拉人系统 (通用商用版)</h2>
-    
-    <div class="section-title">🔑 专属开发者凭证配置</div>
-    <input type="text" id="api_id" placeholder="API_ID">
-    <input type="text" id="api_hash" placeholder="API_HASH">
-    <input type="text" id="phone" placeholder="操作账号手机号 (带国家码如 +86...)">
-    
-    <div class="flex-box">
-        <button class="btn btn-blue" onclick="sendCode()">⚡ 发送验证码</button>
-        <input type="text" id="login_code" placeholder="输入验证码" style="margin-bottom: 10px;">
-        <button class="btn btn-green" onclick="login()" style="width: 40%;">确认登录</button>
+    <div class="w-full max-w-md bg-gray-800 rounded-lg shadow-2xl p-6 border border-gray-700">
+        <!-- 头部系统标题 -->
+        <div class="text-center mb-6">
+            <h2 class="text-lg font-bold text-gray-200 tracking-wide">
+                云端多群联合采集拉人系统
+            </h2>
+            <span class="text-xs text-gray-400 block mt-1">(通用商用版)</span>
+        </div>
+
+        <!-- 主表单 -->
+        <form id="mainForm" class="space-y-4" onsubmit="return false;">
+            <!-- 凭证配置 -->
+            <div>
+                <label class="block text-xs font-medium text-yellow-500 mb-1.5">🔑 专属开发者凭证配置</label>
+                <input type="text" id="api_id" placeholder="APL_ID" required
+                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500">
+            </div>
+            <div>
+                <input type="text" id="api_hash" placeholder="APL_HASH" required
+                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500">
+            </div>
+
+            <!-- 手机号与验证码发送 -->
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">操作账号手机号 (带国家代码 -> +86...)</label>
+                <div class="flex gap-2">
+                    <input type="text" id="phone" placeholder="+8613800000000" required
+                        class="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500">
+                    <button type="button" id="btnSendCode" onclick="executeSendCode()"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded text-xs transition shrink-0 flex items-center gap-1 shadow-md">
+                        ⚡ 发送验证码
+                    </button>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 🌟 隐藏联动区域：发送成功后才闪现 -->
+            <!-- ========================================== -->
+            <div id="authDynamicZone" class="hidden-auth-zone space-y-3 bg-gray-850 p-3 rounded border border-dashed border-yellow-600/50 my-2">
+                <div>
+                    <label class="block text-xs font-medium text-yellow-400 mb-1">💬 验证码 (Code)</label>
+                    <input type="text" id="code" placeholder="请输入 Telegram 官方收到的验证码"
+                        class="w-full bg-gray-700 border border-yellow-600/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-yellow-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-yellow-400 mb-1">🔒 两步验证密码 (Password)</label>
+                    <input type="password" id="password" placeholder="未开启两步验证则留空"
+                        class="w-full bg-gray-700 border border-yellow-600/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-yellow-500">
+                </div>
+                <button type="button" onclick="executeLogin()"
+                    class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 rounded text-xs transition shadow-md">
+                    确认登录并连接
+                </button>
+            </div>
+            <!-- ========================================== -->
+
+            <!-- 任务分配 -->
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">🔴 拉人任务分配</label>
+                <textarea id="task_details" placeholder="你需要拉入的群组链接" rows="2"
+                    class="w-full bg-gray-750 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-600"></textarea>
+            </div>
+            <div>
+                <input type="number" id="task_count" value="100"
+                    class="w-full bg-gray-750 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+            </div>
+
+            <!-- 操作控制按钮 -->
+            <div class="flex gap-4 pt-2">
+                <button type="button" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-sm transition shadow-lg">
+                    ⚠️ 开始运行
+                </button>
+                <button type="button" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded text-sm transition shadow-lg">
+                    停止运行
+                </button>
+            </div>
+        </form>
+
+        <!-- 实时控制台日志面板 -->
+        <div class="mt-6">
+            <label class="block text-xs font-semibold text-green-400 tracking-wider mb-1">🟩 实时监控日志面板:</label>
+            <div id="logConsole" class="w-full h-36 bg-black text-green-400 font-mono text-[11px] p-3 rounded overflow-y-auto border border-gray-950 space-y-1 shadow-inner">
+                <!-- 由后端获取的实时日志会流式插入到这里 -->
+            </div>
+        </div>
     </div>
 
-    <div class="section-title">🎯 拉人任务分配</div>
-    <input type="text" id="target_group" placeholder="你的目的地群组链接">
-    <input type="number" id="pull_count" placeholder="要拉取的数量" value="100">
-    <textarea id="source_groups" rows="3" placeholder="采集群 (一行一个群链接)"></textarea>
+    <!-- 前端核心交互 Script -->
+    <script>
+        // 缓存 Telegram 握手需要的流水号
+        let savedPhoneCodeHash = "";
 
-    <div class="flex-box">
-        <button class="btn btn-green" onclick="startJob()">⚠️ 开始运行</button>
-        <button class="btn btn-red" onclick="alert('任务已尝试停止')">🛑 停止运行</button>
-    </div>
+        // 1. 点击发送验证码的逻辑
+        async function executeSendCode() {
+            const api_id = document.getElementById('api_id').value;
+            const api_hash = document.getElementById('api_hash').value;
+            const phone = document.getElementById('phone').value;
 
-    <div class="section-title">📊 实时监控日志面板:</div>
-    <div class="log-panel" id="log_panel">正在准备就绪，等待下达参数指令...</div>
-</div>
+            if (!api_id || !api_hash || !phone) {
+                alert("提示：请先完整填写 APL_ID、APL_HASH 和操作手机号！");
+                return;
+            }
 
-<script>
-    // 自动定时刷新日志
-    setInterval(async () => {
-        try {
-            let res = await fetch('/api/get_logs');
-            let data = await res.json();
-            let logPanel = document.getElementById('log_panel');
-            logPanel.innerText = data.logs;
-            logPanel.scrollTop = logPanel.scrollHeight; // 滚动到最底部
-        } catch(e) {}
-    }, 2000);
+            const btn = document.getElementById('btnSendCode');
+            btn.innerText = "正在请求...";
+            btn.disabled = true;
 
-    async function sendCode() {
-        let res = await fetch('/api/send_code', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                api_id: document.getElementById('api_id').value,
-                api_hash: document.getElementById('api_hash').value,
-                phone: document.getElementById('phone').value
-            })
-        });
-        let data = await res.json();
-        alert(data.message);
-    }
+            try {
+                const response = await fetch('/api/send_code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_id, api_hash, phone })
+                });
+                const data = await response.json();
 
-    async function login() {
-        let res = await fetch('/api/login', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                phone: document.getElementById('phone').value,
-                code: document.getElementById('login_code').value
-            })
-        });
-        let data = await res.json();
-        alert(data.message);
-    }
+                if (data.status === 'success') {
+                    savedPhoneCodeHash = data.phone_code_hash;
+                    // 🌟 核心控制：发送成功，解除隐藏状态，展现输入框和密码验证框
+                    document.getElementById('authDynamicZone').style.display = 'block';
+                    alert("验证码发送成功！请查看 Telegram 并输入验证码。");
+                } else {
+                    alert("发送失败: " + data.message);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("网络请求异常，请确认后端 Flask 正在运行");
+            } finally {
+                btn.innerText = "⚡ 发送验证码";
+                btn.disabled = false;
+            }
+        }
 
-    async function startJob() {
-        let res = await fetch('/api/start_job', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                target_group: document.getElementById('target_group').value,
-                pull_count: document.getElementById('pull_count').value,
-                source_groups: document.getElementById('source_groups').value
-            })
-        });
-        let data = await res.json();
-        alert(data.message);
-    }
-</script>
+        // 2. 点击确认登录的逻辑
+        async function executeLogin() {
+            const phone = document.getElementById('phone').value;
+            const code = document.getElementById('code').value;
+            const password = document.getElementById('password').value;
 
-</body>
-</html>
-pullCount: document.getElementById('pull_count'),
-sources: document.getElementById('source_groups'),
-btnSendCode: document.getElementById('btn-send-code'),
-btnVerify: document.getElementById('btn-verify'),
-btnBack: document.getElementById('btn-back'),
-btnStart: document.getElementById('btn-start'),
-btnStop: document.getElementById('btn-stop'),
-logContainer: document.getElementById('log-container'),
-logEmpty: document.getElementById('log-empty')
-};
+            if (!code) {
+                alert("请输入验证码！");
+                return;
+            }
 
-// 1. 请求发送验证码
-nodes.btnSendCode.onclick = async () => {
-if (!nodes.apiId.value || !nodes.apiHash.value) return alert("请先在前端填写 API_ID 和 API_HASH！");
-if (!nodes.phone.value) return alert("请输入手机号！");
-try {
-const res = await fetch(`${API_BASE}/api/login/send_code`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-phone: nodes.phone.value,
-api_id: parseInt(nodes.apiId.value),
-api_hash: nodes.apiHash.value.trim()
-})
-});
-const data = await res.json();
-if (res.ok) {
-alert("验证码申请成功，请查看 TG 客户端");
-nodes.step1.classList.add('hidden');
-nodes.step2.classList.remove('hidden');
-} else { alert("发码失败: " + (data.detail || "未知错误")); }
-} catch (err) { alert("网络超时，请检查后端服务"); }
-};
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone: phone,
+                        code: code,
+                        password: password,
+                        phone_code_hash: savedPhoneCodeHash
+                    })
+                });
+                const data = await response.json();
 
-// 2. 校验验证码
-nodes.btnVerify.onclick = async () => {
-if (!nodes.code.value) return alert("请输入验证码！");
-try {
-const res = await fetch(`${API_BASE}/api/login/verify_code`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-phone: nodes.phone.value,
-code: nodes.code.value,
-password: nodes.pwd2fa.value || null
-})
-});
-const data = await res.json();
-if (res.ok) {
-alert("恭喜，操作号登录成功！");
-nodes.step2.classList.add('hidden');
-nodes.step1.classList.remove('hidden');
-} else { alert("校验失败: " + (data.detail || "验证码错误")); }
-} catch (err) { alert("验证登录失败"); }
-};
-nodes.btnBack.onclick = () => {
-nodes.step2.classList.add('hidden');
-nodes.step1.classList.remove('hidden');
-};
+                if (data.status === 'success') {
+                    alert("系统登录成功，客户端已成功连接！");
+                    // 登录成功后可选择自动收起隐藏框
+                    document.getElementById('authDynamicZone').style.display = 'none';
+                } else if (data.status === 'need_password') {
+                    alert(data.message);
+                } else {
+                    alert("连接失败: " + data.message);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("登录连接请求失败");
+            }
+        }
 
-// 3. 启动多群拉人任务
-nodes.btnStart.onclick = async () => {
-if(!nodes.sources.value.trim()) return alert("请填写采集群！");
-try {
-const res = await fetch(`${API_BASE}/api/start_task`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-target_link: nodes.targetGroup.value,
-pull_count: parseInt(nodes.pullCount.value),
-source_groups: nodes.sources.value.split('\n').filter(line => line.trim() !== ''),
-api_id: parseInt(nodes.apiId.value),
-api_hash: nodes.apiHash.value.trim()
-})
-});
-if (res.ok) alert("多群联合采集任务已开跑！");
-else { const d = await res.json(); alert(d.message); }
-} catch (err) { alert("下发任务失败"); }
-};
-nodes.btnStop.onclick = async () => {
-await fetch(`${API_BASE}/api/stop_task`, { method: "POST" });
-alert("已停止");
-};
+        // 3. 轮询同步控制台日志
+        async function syncLogsFromServer() {
+            try {
+                const response = await fetch('/api/get_logs');
+                const data = await response.json();
+                const logConsole = document.getElementById('logConsole');
+                
+                // 重刷日志区
+                logConsole.innerHTML = "";
+                data.logs.forEach(text => {
+                    const node = document.createElement('div');
+                    node.innerText = text;
+                    logConsole.appendChild(node);
+                });
+                
+                // 让滚动条始终粘滞在最底部
+                logConsole.scrollTop = logConsole.scrollHeight;
+            } catch (err) {
+                // 静默失败，避免轮询报错打扰用户
+                console.debug("日志刷新失败:", err);
+            }
+        }
 
-// 4. 实时动态监控日志
-setInterval(async () => {
-try {
-const res = await fetch(`${API_BASE}/api/logs`);
-if (!res.ok) return;
-const data = await res.json();
-if (data.is_running) {
-nodes.btnStart.disabled = true; nodes.btnStart.style.opacity = "0.5";
-} else {
-nodes.btnStart.disabled = false; nodes.btnStart.style.opacity = "1";
-}
-if (data.logs && data.logs.length > 0) {
-nodes.logEmpty.classList.add('hidden');
-const oldLines = nodes.logContainer.querySelectorAll('.log-line');
-oldLines.forEach(line => line.remove());
-data.logs.forEach(log => {
-const p = document.createElement('p');
-p.className = 'log-line';
-p.innerText = log;
-if (log.includes("[成功]")) p.className = 'log-line log-success';
-else if (log.includes("失败") || log.includes("拦截")) p.className = 'log-line log-error';
-else if (log.includes("⚠")) p.className = 'log-line log-warning';
-nodes.logContainer.appendChild(p);
-});
-nodes.logContainer.scrollTop = nodes.logContainer.scrollHeight;
-}
-} catch (err) {}
-}, 1000);
-</script>
+        // 设定每 2 秒自动向后端同步一次控制台数据
+        setInterval(syncLogsFromServer, 2000);
+        // 初始化时立即执行一次加载
+        syncLogsFromServer();
+    </script>
 </body>
 </html>
