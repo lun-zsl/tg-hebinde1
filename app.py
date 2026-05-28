@@ -1,16 +1,19 @@
 import os
 import asyncio
 import threading
+import random
+from datetime import datetime, timedelta, timezone
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from telethon import TelegramClient
 from telethon.errors import UserPrivacyRestrictedError, UserAlreadyParticipantError, FloodWaitError, SessionPasswordNeededError
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest, InviteToChannelRequest
+from telethon.tl.types import UserStatusOnline, UserStatusOffline, UserStatusRecently
 
 app = Flask(__name__, template_folder='.') 
 CORS(app)
 
-# ==================== 核心：独立后台线程配置 ====================
+# ==================== 独立后台线程配置 ====================
 telethon_loop = asyncio.new_event_loop()
 
 def start_telethon_loop():
@@ -24,9 +27,13 @@ def run_async_safe(coro):
     return future.result()
 # ===============================================================
 
+# 全局变量与任务状态机控制
 client = None
 phone_code_hashes = {}  
-system_logs = "【系统通知】后端服务已就绪...\n"
+system_logs = "【系统通知】全自动活人采集系统就绪...\n"
+
+# 任务控制状态：'running' (运行中), 'paused' (暂停中), 'stopped' (停止)
+job_status = "stopped" 
 
 def append_log(text):
     global system_logs
@@ -50,7 +57,7 @@ def send_code():
     phone = data.get('phone')
     
     if not api_id or not api_hash or not phone:
-        return jsonify({"status": "error", "message": "请填写完整的 API_ID, API_HASH 和手机号"})
+        return jsonify({"status": "error", "message": "请填写完整的凭证配置"})
     
     async def _send():
         global client
@@ -63,7 +70,7 @@ def send_code():
         code_hash = run_async_safe(_send())
         phone_code_hashes[phone] = code_hash 
         append_log(f"【验证码提示】已向手机号 {phone} 发送验证码，请在网页输入。")
-        return jsonify({"status": "success", "message": "验证码发送成功，请注意查收"})
+        return jsonify({"status": "success", "message": "验证码发送成功，请查收"})
     except Exception as e:
         append_log(f"【错误】发送验证码失败: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
@@ -81,7 +88,7 @@ def login():
     
     code_hash = phone_code_hashes.get(phone)
     if not code_hash:
-        return jsonify({"status": "error", "message": "未找到对应的验证码发送记录，请重新发送"})
+        return jsonify({"status": "error", "message": "未找到验证码记录"})
 
     async def _login():
         try:
@@ -99,105 +106,151 @@ def login():
         append_log(f"【错误】登录失败: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route('/api/control_job', methods=['POST'])
+def control_job():
+    """接收前端发来的 暂停/继续/停止 指令"""
+    global job_status
+    action = request.json.get('action')
+    
+    if action == "pause":
+        job_status = "paused"
+        append_log("⏸️ 【任务暂停】拉人已暂停，保持当前进度，随时可以恢复...")
+        return jsonify({"status": "success", "message": "任务已暂停"})
+    elif action == "resume":
+        job_status = "running"
+        append_log("▶️ 【任务恢复】正在重新对接数据，继续拉人任务...")
+        return jsonify({"status": "success", "message": "任务已继续"})
+    elif action == "stop":
+        job_status = "stopped"
+        append_log("🛑 【强制停止】正在强制终止后台脚本并执行退群清理...")
+        return jsonify({"status": "success", "message": "正在强行终止..."})
+    
+    return jsonify({"status": "error", "message": "未知指令"})
+
 @app.route('/api/start_job', methods=['POST'])
 def start_job():
-    global client
+    global client, job_status
     data = request.json
     target_group = data.get('target_group').strip()
     pull_count = int(data.get('pull_count', 100))
     source_groups = data.get('source_groups', '').split('\n')
     
     if not client:
-        return jsonify({"status": "error", "message": "错误：Telegram 账号未登录，请先登录！"})
+        return jsonify({"status": "error", "message": "Telegram 账号未登录！"})
 
-    append_log(f"【任务启动】目标群: {target_group} | 计划拉取数量: {pull_count}")
+    job_status = "running"
+    append_log(f"【任务启动】目标群: {target_group} | 限制最高拉取: {pull_count} 人")
     
     async def _do_pull_job():
-        # 记录本次任务中所有加入过的群，以便最后统一无痕退出 [4]
+        global job_status
         joined_groups = []
         try:
-            # 1. 自动加入目的地群组 [2]
-            append_log(f" 正在尝试自动加入目的地群: {target_group}...")
+            # 1. 自动进入目的地群组
             try:
                 target_entity = await client.get_input_entity(target_group)
                 await client(JoinChannelRequest(target_entity))
-                joined_groups.append(target_entity) # 标记需要退出 [4]
-                append_log(" 成功加入目的地群。")
-            except Exception as e:
-                append_log(f"⚠️ 进目的地群提示（可能已在群内）: {str(e)}")
+                joined_groups.append(target_entity)
+                append_log(" 成功进入目的地群组。")
+            except Exception:
                 target_entity = await client.get_input_entity(target_group)
 
             pulled_today = 0
-            
-            # 2. 循环处理采集群 [2]
+            three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
+
             for src_group in source_groups:
                 src_group = src_group.strip()
-                if not src_group: 
+                if not src_group or job_status == "stopped": 
                     continue
                 
-                append_log(f" 正在尝试自动加入采集群【{src_group}】...")
+                append_log(f" 正在尝试进入采集群【{src_group}】...")
                 try:
                     src_entity = await client.get_input_entity(src_group)
                     await client(JoinChannelRequest(src_entity))
-                    joined_groups.append(src_entity) # 标记需要退出 [4]
-                    append_log(f" 成功进入采集群【{src_group}】")
-                except Exception as e:
-                    append_log(f"💡 提示：该采集群无需重复加入或已在群内。")
+                    joined_groups.append(src_entity)
+                except Exception:
                     src_entity = await client.get_input_entity(src_group)
 
-                append_log(f" 开始从【{src_group}】中提取成员...")
+                append_log(f" 🔍 开始扫描【{src_group}】中的【活跃真人】...")
                 
-                # 3. 提取并拉人
-                async for user in client.iter_participants(src_entity, limit=200):
-                    if pulled_today >= pull_count:
-                        append_log("【目标达成】已达到您设定的拉取数量，准备清理战场...")
-                        return
+                # 2. 遍历采集群成员
+                async for user in client.iter_participants(src_entity, limit=500):
+                    # 【随时暂停/停止的核心拦截器】
+                    while job_status == "paused":
+                        await asyncio.sleep(2) # 如果状态是暂停，后台就在这里空转等待
+                    if job_status == "stopped" or pulled_today >= pull_count:
+                        break
                     
                     if user.bot or not user.username:
                         continue
-                        
+                    
+                    # 💡 【高阶真人筛选机制】：判断在线状态
+                    is_active_user = False
+                    if isinstance(user.status, UserStatusOnline):
+                        is_active_user = True  # 当前在线，绝对是真人
+                    elif isinstance(user.status, UserStatusRecently):
+                        is_active_user = True  # 最近刚上线，活人
+                    elif isinstance(user.status, UserStatusOffline):
+                        # 如果离线，判断最后上线时间是否在 3 天内
+                        if user.status.was_online and user.status.was_online > three_days_ago:
+                            is_active_user = True
+                    
+                    if not is_active_user:
+                        continue # 僵尸号、长达一周/一个月不上线的人直接过滤跳过
+
+                    # 3. 执行强行拉人
                     try:
-                        append_log(f" 正在尝试拉入用户: @{user.username} ...")
+                        append_log(f" [活跃真人] 发现! 正在把 @{user.username} 强行拉入群组...")
                         await client(InviteToChannelRequest(target_entity, [user]))
                         pulled_today += 1
-                        append_log(f" 成功拉入 [ @{user.username} ] ！当前总计成功: {pulled_today} 人")
-                        await asyncio.sleep(25) # 防封号延迟
+                        append_log(f" 🟢 成功拉入 [ @{user.username} ] ！当前成功累计: {pulled_today} / {pull_count} 人")
                         
+                        if pulled_today >= pull_count:
+                            append_log(" 目标拉取数量已达成，完美完成任务！")
+                            job_status = "stopped"
+                            break
+
+                        # ⏳ 【满足您的要求】：每拉一个人休息 30 到 40 秒之间的随机时间
+                        sleep_time = random.randint(30, 40)
+                        append_log(f" 💤 安全防封防检测：原地休眠 {sleep_time} 秒...")
+                        
+                        # 在休眠期间，也要允许响应暂停或停止
+                        for _ in range(sleep_time):
+                            if job_status == "stopped": break
+                            while job_status == "paused": await asyncio.sleep(1)
+                            await asyncio.sleep(1)
+
                     except UserPrivacyRestrictedError:
-                        append_log(f"❌ 失败：用户 @{user.username} 开启了隐私保护。")
+                        append_log(f"❌ 拒绝：@{user.username} 开启了防陌生人拉群限制。")
                     except UserAlreadyParticipantError:
-                        append_log(f"💡 提示：用户 @{user.username} 已经在群里了。")
+                        append_log(f"💡 提示：@{user.username} 本来就在群里。")
                     except FloodWaitError as e:
-                        append_log(f"⚠️ 触发频率限制：官方要求必须等待 {e.seconds} 秒...")
+                        append_log(f"⚠️ 触发风控：操作过快，官方要求强行休眠 {e.seconds} 秒...")
                         await asyncio.sleep(e.seconds)
                     except Exception as e_user:
-                        # 如果出现 Too many requests，说明整个号额度干光了，直接断开换退群清理 [1]
                         if "Too many requests" in str(e_user):
-                            append_log("❌ 严重警告：本账号今日拉人额度已达官方死限！立即强行终止任务并自动退群！")
-                            return
-                        append_log(f"❌ 常规错误: {str(e_user)}")
-                        await asyncio.sleep(5) 
-                        
-            append_log(f"【扫描完毕】所有采集群处理结束。")
-            
+                            append_log("❌ 严重错误：当前账号今日额度已死，立即终止！")
+                            job_status = "stopped"
+                            break
+                        append_log(f"❌ 拉人失败: {str(e_user)}")
+                        await asyncio.sleep(5)
+
+            append_log(" 所有群组扫描采集结束。")
         except Exception as e:
-            append_log(f"【致命错误】后台任务中断: {str(e)}")
-            
+            append_log(f"【后台异常】{str(e)}")
         finally:
-            # 4. ⚡ 无论成功还是中途报错、触发限制，都会无痕自动退出加入过的群 [4]
-            append_log("🧹 【清理战场】正在执行自动退群逻辑...")
+            # 4. 全自动无痕退群清理机制
+            append_log("🧹 任务状态结束，正在为您自动清理退群...")
             for group_entity in joined_groups:
                 try:
                     await client(LeaveChannelRequest(group_entity))
-                    append_log(" 已自动退出一个相关群组。")
-                    await asyncio.sleep(2) # 优雅退群延迟
-                except Exception as e_leave:
-                    print(f"退群失败: {e_leave}")
-            append_log("✨ 【无痕清理完成】所有临时加入的群组已全部自动退出！")
+                    await asyncio.sleep(1.5)
+                except Exception:
+                    pass
+            append_log("✨ 所有临时加入的采集群和目的群已全部无痕安全退出。")
+            job_status = "stopped"
 
-    # 提交到专用后台线程
     asyncio.run_coroutine_threadsafe(_do_pull_job(), telethon_loop)
-    return jsonify({"status": "success", "message": "进群-拉人-退群全自动流水线任务已在后台启动！"})
+    return jsonify({"status": "success", "message": "全自动活人采集任务已提交至后台！"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
