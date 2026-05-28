@@ -4,105 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>云端多群联合采集拉人系统</title>
-    <!-- 引入 Tailwind CSS 快速构建与截图一致的暗黑系商用UI -->
-    <script src="https://jsdelivr.net"></script>
     <style>
-        /* 初始隐藏两步验证和验证码控制区 */
-        .hidden-auth-zone {
-            display: none;
-        }
+        body { background-color: #1a1a1a; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 500px; background: #262626; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        h2 { text-align: center; font-size: 18px; color: #e0e0e0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .section-title { font-size: 14px; color: #aaa; margin-top: 15px; margin-bottom: 8px; display: flex; align-items: center; }
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 12px; background: #333; border: 1px solid #444; border-radius: 4px; color: #fff; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .btn-blue { background-color: #007bff; color: white; }
+        .btn-green { background-color: #28a745; color: white; }
+        .btn-red { background-color: #dc3545; color: white; }
+        .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 15px; min-height: 150px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
+        .flex-box { display: flex; gap: 10px; }
+        
+        /* 新增：隐藏样式的控制类 */
+        .hidden { display: none !important; }
+        .login-area { width: 100%; display: flex; flex-direction: column; background: #2d2d2d; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #555; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans min-h-screen flex items-center justify-center p-4">
+<body>
 
-    <div class="w-full max-w-md bg-gray-800 rounded-lg shadow-2xl p-6 border border-gray-700">
-        <!-- 头部系统标题 -->
-        <div class="text-center mb-6">
-            <h2 class="text-lg font-bold text-gray-200 tracking-wide">
-                云端多群联合采集拉人系统
-            </h2>
-            <span class="text-xs text-gray-400 block mt-1">(通用商用版)</span>
-        </div>
+<div class="container">
+    <h2>云端多群联合采集拉人系统 (通用商用版)</h2>
+    
+    <div class="section-title">🔑 专属开发者凭证配置</div>
+    <input type="text" id="api_id" placeholder="API_ID">
+    <input type="text" id="api_hash" placeholder="API_HASH">
+    <input type="text" id="phone" placeholder="操作账号手机号 (带国家码如 +86...)">
+    
+    <!-- 发送验证码按钮 -->
+    <button class="btn btn-blue" id="send_btn" onclick="sendCode()">⚡ 发送验证码</button>
 
-        <!-- 主表单 -->
-        <form id="mainForm" class="space-y-4" onsubmit="return false;">
-            <!-- 凭证配置 -->
-            <div>
-                <label class="block text-xs font-medium text-yellow-500 mb-1.5">🔑 专属开发者凭证配置</label>
-                <input type="text" id="api_id" placeholder="APL_ID" required
-                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500">
-            </div>
-            <div>
-                <input type="text" id="api_hash" placeholder="APL_HASH" required
-                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500">
-            </div>
-
-            <!-- 手机号与验证码发送 -->
-            <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1.5">操作账号手机号 (带国家代码 -> +86...)</label>
-                <div class="flex gap-2">
-                    <input type="text" id="phone" placeholder="+8613800000000" required
-                        class="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500">
-                    <button type="button" id="btnSendCode" onclick="executeSendCode()"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded text-xs transition shrink-0 flex items-center gap-1 shadow-md">
-                        ⚡ 发送验证码
-                    </button>
-                </div>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- 🌟 隐藏联动区域：发送成功后才闪现 -->
-            <!-- ========================================== -->
-            <div id="authDynamicZone" class="hidden-auth-zone space-y-3 bg-gray-850 p-3 rounded border border-dashed border-yellow-600/50 my-2">
-                <div>
-                    <label class="block text-xs font-medium text-yellow-400 mb-1">💬 验证码 (Code)</label>
-                    <input type="text" id="code" placeholder="请输入 Telegram 官方收到的验证码"
-                        class="w-full bg-gray-700 border border-yellow-600/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-yellow-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-yellow-400 mb-1">🔒 两步验证密码 (Password)</label>
-                    <input type="password" id="password" placeholder="未开启两步验证则留空"
-                        class="w-full bg-gray-700 border border-yellow-600/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-yellow-500">
-                </div>
-                <button type="button" onclick="executeLogin()"
-                    class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 rounded text-xs transition shadow-md">
-                    确认登录并连接
-                </button>
-            </div>
-            <!-- ========================================== -->
-
-            <!-- 任务分配 -->
-            <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1.5">🔴 拉人任务分配</label>
-                <textarea id="task_details" placeholder="你需要拉入的群组链接" rows="2"
-                    class="w-full bg-gray-750 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-600"></textarea>
-            </div>
-            <div>
-                <input type="number" id="task_count" value="100"
-                    class="w-full bg-gray-750 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-            </div>
-
-            <!-- 操作控制按钮 -->
-            <div class="flex gap-4 pt-2">
-                <button type="button" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-sm transition shadow-lg">
-                    ⚠️ 开始运行
-                </button>
-                <button type="button" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded text-sm transition shadow-lg">
-                    停止运行
-                </button>
-            </div>
-        </form>
-
-        <!-- 实时控制台日志面板 -->
-        <div class="mt-6">
-            <label class="block text-xs font-semibold text-green-400 tracking-wider mb-1">🟩 实时监控日志面板:</label>
-            <div id="logConsole" class="w-full h-36 bg-black text-green-400 font-mono text-[11px] p-3 rounded overflow-y-auto border border-gray-950 space-y-1 shadow-inner">
-                <!-- 由后端获取的实时日志会流式插入到这里 -->
-            </div>
-        </div>
+    <!-- 验证与登录区域：默认隐藏，发送成功后展开 -->
+    <div id="login_fields_area" class="login-area hidden">
+        <div style="font-size: 12px; color: #ffc107; margin-bottom: 8px;">⚠️ 请检查 Telegram App 接收到的验证代码：</div>
+        <input type="text" id="login_code" placeholder="请输入 5 位数字验证码">
+        <input type="password" id="password" placeholder="请输入两步验证密码 (若未开启可不填)">
+        <button class="btn btn-green" onclick="login()">确认登录连接</button>
     </div>
 
-    <!-- 前端核心交互 Script -->
+    <div class="section-title">🎯 拉人任务分配</div>
+    <input type="text" id="target_group" placeholder="你的目的地群组链接">
+    <input type="number" id="pull_count" placeholder="要拉取的数量" value="100">
+    <textarea id="source_groups" rows="3" placeholder="采集群 (一行一个群链接)"></textarea>
+
+    <div class="flex-box">
+        <button class="btn btn-green" onclick="startJob()">⚠️ 开始运行</button>
+        <button class="btn btn-red" onclick="alert('任务已尝试停止')">🛑 停止运行</button>
+    </div>
+
+    <div class="section-title">📊 实时监控日志面板:</div>
+    <div class="log-panel" id="log_panel">正在准备就绪，等待下达参数指令...</div>
+</div>
+
+<script>
+    // 自动定时刷新日志
+    setInterval(async () => {
+        try {
+            let res = await fetch('/api/get_logs');
+            let data = await res.json();
+            let logPanel = document.getElementById('log_panel');
+            logPanel.innerText = data.logs;
+            logPanel.scrollTop = logPanel.scrollHeight; 
+        } catch(e) {}
+    }, 2000);
+
+    async function sendCode() {
+        let sendBtn = document.getElementById('send_btn');
+        sendBtn.innerText = "正在发送中...";
+        sendBtn.disabled = true;
+
+        try {
+            let res = await fetch('/api/send_code', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    api_id: document.getElementById('api_id').value,
+                    api_hash: document.getElementById('api_hash').value,
+                    phone: document.getElementById('phone').value
+                })
+            });
+            let data = await res.json();
+            
+            // 弹出后端返回的信息
+            alert(data.message || "请求已发送");
+
+            // 显示隐藏的验证码与两步验证输入区域
+            document.getElementById('login_fields_area').classList.remove('hidden');
+        } catch (error) {
+            alert("发送失败，请检查后端服务是否正常运行。");
+        } finally {
+            sendBtn.innerText = "⚡ 重新发送验证码";
+            sendBtn.disabled = false;
+        }
+    }
+
+    async function login() {
+        let res = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                phone: document.getElementById('phone').value,
+                code: document.getElementById('login_code').value,
+                password: document.getElementById('password').value // 传给后端的两步验证密码
+            })
+        });
+        let data = await res.json();
+        alert(data.message);
+    }
+
+    async function startJob() {
+        let res = await fetch('/api/start_job', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                target_group: document.getElementById('target_group').value,
+                pull_count: document.getElementById('pull_count').value,
+                source_groups: document.getElementById('source_groups').value
+            })
+        });
+        let data = await res.json();
+        alert(data.message);
+    }
+</script>
+
+</body>
+</html>
     <script>
         // 缓存 Telegram 握手需要的流水号
         let savedPhoneCodeHash = "";
