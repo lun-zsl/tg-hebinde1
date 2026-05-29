@@ -3,30 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>云端多群联合采集拉人系统</title>
+    <title>云端多群联合采集拉人系统 (全能通用版)</title>
     <style>
-        body { background-color: #1a1a1a; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 500px; background: #262626; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        h2 { text-align: center; font-size: 18px; color: #e0e0e0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .section-title { font-size: 14px; color: #aaa; margin-top: 15px; margin-bottom: 8px; display: flex; align-items: center; }
-        input, textarea { width: 100%; padding: 10px; margin-bottom: 12px; background: #333; border: 1px solid #444; border-radius: 4px; color: #fff; box-sizing: border-box; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        body { background-color: #1a1a1a; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 15px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 500px; background: #262626; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
+        h2 { text-align: center; font-size: 16px; color: #e0e0e0; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .section-title { font-size: 13px; color: #aaa; margin-top: 12px; margin-bottom: 6px; display: flex; align-items: center; }
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; background: #333; border: 1px solid #444; border-radius: 4px; color: #fff; box-sizing: border-box; font-size: 14px; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; font-size: 14px; }
         .btn-blue { background-color: #007bff; color: white; }
         .btn-green { background-color: #28a745; color: white; }
-        .btn-yellow { background-color: #ffc107; color: #111; } 
+        .btn-yellow { background-color: #ffc107; color: #111; }
         .btn-red { background-color: #dc3545; color: white; }
-        .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 15px; min-height: 150px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
-        .flex-box { display: flex; gap: 10px; }
-        
+        .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 180px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
+        .flex-box { display: flex; gap: 8px; }
         .hidden { display: none !important; }
-        .login-area { width: 100%; display: flex; flex-direction: column; background: #2d2d2d; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #555; }
+        .login-area { width: 100%; display: flex; flex-direction: column; background: #2d2d2d; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px dashed #555; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>云端多群联合采集拉人系统 (通用商用版)</h2>
+    <h2>云端多群联合采集拉人系统 (全能通用版)</h2>
     
+    <!-- 智能识别：如果是网页使用，请直接留空！如果是手机独立APP，请填写你的公网IP -->
+    <div class="section-title">🌐 服务器连接配置 (网页调试请留空)</div>
+    <input type="text" id="server_url" placeholder="独立APP必填，示例: http://你的公网IP:5000" value="">
+
     <div class="section-title">🔑 专属开发者凭证配置</div>
     <input type="text" id="api_id" placeholder="API_ID">
     <input type="text" id="api_hash" placeholder="API_HASH">
@@ -35,7 +38,7 @@
     <button class="btn btn-blue" id="send_btn" onclick="sendCode()">⚡ 获取验证码</button>
 
     <div id="login_fields_area" class="login-area hidden">
-        <div style="font-size: 12px; color: #ffc107; margin-bottom: 8px;">⚠️ 请检查 Telegram App 接收到的验证代码：</div>
+        <div style="font-size: 12px; color: #ffc107; margin-bottom: 8px;">⚠️ 请检查 Telegram 官方接收到的验证代码：</div>
         <input type="text" id="login_code" placeholder="请输入 5 位数字验证码">
         <input type="password" id="password" placeholder="请输入两步验证密码 (若未开启可不填)">
         <button class="btn btn-green" onclick="login()">确认登录连接</button>
@@ -54,17 +57,26 @@
     </div>
 
     <div class="section-title">📊 实时监控日志面板:</div>
-    <div class="log-panel" id="log_panel">正在准备就绪，等待下达参数指令...</div>
+    <div class="log-panel" id="log_panel">正在初始化环境，等待连接后端...</div>
 </div>
 
 <script>
-    // 💡 核心机制：自动绑定当前云端访问的真实主域名，彻底抛弃本地 localhost 导致的指令下发失败问题
-    const API_BASE = window.location.origin;
+    // 自动识别当前的运行环境是网页还是独立APP
+    function getBaseUrl() {
+        let url = document.getElementById('server_url').value.trim();
+        if (url) {
+            if (url.endsWith('/')) url = url.slice(0, -1);
+            return url;
+        }
+        // 如果用户没填输入框，自动使用当前浏览器的域名（Codespaces或手机网页完美自适应）
+        return window.location.origin;
+    }
 
     // 自动定时刷新日志
     setInterval(async () => {
+        let baseUrl = getBaseUrl();
         try {
-            let res = await fetch(`${API_BASE}/api/get_logs`);
+            let res = await fetch(`${baseUrl}/api/get_logs`);
             let data = await res.json();
             let logPanel = document.getElementById('log_panel');
             logPanel.innerText = data.logs;
@@ -73,12 +85,13 @@
     }, 2000);
 
     async function sendCode() {
+        let baseUrl = getBaseUrl();
         let sendBtn = document.getElementById('send_btn');
         sendBtn.innerText = "正在发送中...";
         sendBtn.disabled = true;
 
         try {
-            let res = await fetch(`${API_BASE}/api/send_code`, {
+            let res = await fetch(`${baseUrl}/api/send_code`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -88,11 +101,10 @@
                 })
             });
             let data = await res.json();
-            
             alert(data.message || "请求已发送");
             document.getElementById('login_fields_area').classList.remove('hidden');
         } catch (error) {
-            alert("发送失败，请检查后端服务是否正常运行。");
+            alert("无法连接到后端，网页请留空连接配置，APP请检查公网IP。");
         } finally {
             sendBtn.innerText = "⚡ 重新发送验证码";
             sendBtn.disabled = false;
@@ -100,7 +112,8 @@
     }
 
     async function login() {
-        let res = await fetch(`${API_BASE}/api/login`, {
+        let baseUrl = getBaseUrl();
+        let res = await fetch(`${baseUrl}/api/login`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -114,7 +127,8 @@
     }
 
     async function startJob() {
-        let res = await fetch(`${API_BASE}/api/start_job`, {
+        let baseUrl = getBaseUrl();
+        let res = await fetch(`${baseUrl}/api/start_job`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -128,8 +142,9 @@
     }
 
     async function controlJob(action) {
+        let baseUrl = getBaseUrl();
         try {
-            let res = await fetch(`${API_BASE}/api/control_job`, {
+            let res = await fetch(`${baseUrl}/api/control_job`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ action: action })
@@ -137,7 +152,7 @@
             let data = await res.json();
             alert(data.message);
         } catch (error) {
-            alert("指令下发失败，请确认后端已打上最新修补补丁并且处于运行状态！");
+            alert("指令下发失败！");
         }
     }
 </script>
