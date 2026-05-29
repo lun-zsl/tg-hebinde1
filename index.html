@@ -26,8 +26,8 @@
 <div class="container">
     <h2>云端多群联合采集拉人系统 (全能通用版)</h2>
     
-    <!-- 智能识别：如果是网页使用，请直接留空！如果是手机独立APP，请填写你的公网IP -->
-    <div class="section-title">🌐 服务器连接配置 (网页调试请留空)</div>
+    <!-- 智能识别：当前在手机浏览器调试时请直接留空！一个字都不要填！ -->
+    <div class="section-title">🌐 服务器连接配置 (当前网页调试请完全留空)</div>
     <input type="text" id="server_url" placeholder="独立APP必填，示例: http://你的公网IP:5000" value="">
 
     <div class="section-title">🔑 专属开发者凭证配置</div>
@@ -61,14 +61,13 @@
 </div>
 
 <script>
-    // 自动识别当前的运行环境是网页还是独立APP
+    // 💡 智能路由：如果没填，自动使用当前浏览器的域名（彻底绕过 Codespaces 的网络隔离限制）
     function getBaseUrl() {
         let url = document.getElementById('server_url').value.trim();
         if (url) {
             if (url.endsWith('/')) url = url.slice(0, -1);
             return url;
         }
-        // 如果用户没填输入框，自动使用当前浏览器的域名（Codespaces或手机网页完美自适应）
         return window.location.origin;
     }
 
@@ -104,7 +103,7 @@
             alert(data.message || "请求已发送");
             document.getElementById('login_fields_area').classList.remove('hidden');
         } catch (error) {
-            alert("无法连接到后端，网页请留空连接配置，APP请检查公网IP。");
+            alert("无法连接到后端，网页调试请务必【完全留空】第一栏配置！");
         } finally {
             sendBtn.innerText = "⚡ 重新发送验证码";
             sendBtn.disabled = false;
