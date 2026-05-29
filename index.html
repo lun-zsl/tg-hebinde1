@@ -7,7 +7,7 @@
     <style>
         body { background-color: #1a1a1a; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 15px; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 500px; background: #262626; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
-        h2 { text-align: center; font-size: 16px; color: #e0e0e0; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        h2 { text-align: center; font-size: 16px; color: #e0e0e0; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         .section-title { font-size: 13px; color: #aaa; margin-top: 12px; margin-bottom: 6px; display: flex; align-items: center; }
         input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; background: #333; border: 1px solid #444; border-radius: 4px; color: #fff; box-sizing: border-box; font-size: 14px; }
         .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; font-size: 14px; }
@@ -15,6 +15,7 @@
         .btn-green { background-color: #28a745; color: white; }
         .btn-yellow { background-color: #ffc107; color: #111; }
         .btn-red { background-color: #dc3545; color: white; }
+        .btn-mini { padding: 4px 8px; font-size: 12px; margin-bottom: 0; background-color: #555; color: #fff; border-radius: 4px; font-weight: normal; } /* 小巧的更换账号键 */
         .log-panel { background: #000; border: 1px solid #333; padding: 10px; height: 180px; font-family: monospace; font-size: 12px; color: #00ff00; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
         .flex-box { display: flex; gap: 8px; }
         .hidden { display: none !important; }
@@ -24,26 +25,33 @@
 <body>
 
 <div class="container">
-    <h2>云端多群联合采集拉人系统 (全能通用版)</h2>
+    <h2>
+        <span>云端多群联合采集拉人系统</span>
+        <!-- 新增：更换账户返回键，默认隐藏，登录成功后闪现 -->
+        <button id="change_account_btn" class="btn btn-mini hidden" onclick="resetAccountView()">🔄 更换账户</button>
+    </h2>
     
-    <!-- 智能识别：当前在手机浏览器调试时请直接留空！一个字都不要填！ -->
-    <div class="section-title">🌐 服务器连接配置 (当前网页调试请完全留空)</div>
-    <input type="text" id="server_url" placeholder="独立APP必填，示例: http://你的公网IP:5000" value="">
+    <!-- 凭证配置大区：登录成功后整体折叠收起 -->
+    <div id="credentials_section">
+        <div class="section-title">🌐 服务器连接配置 (当前网页调试请完全留空)</div>
+        <input type="text" id="server_url" placeholder="独立APP必填，示例: http://你的公网IP:5000" value="">
 
-    <div class="section-title">🔑 专属开发者凭证配置</div>
-    <input type="text" id="api_id" placeholder="API_ID">
-    <input type="text" id="api_hash" placeholder="API_HASH">
-    <input type="text" id="phone" placeholder="操作账号手机号 (带国家码如 +86...)">
-    
-    <button class="btn btn-blue" id="send_btn" onclick="sendCode()">⚡ 获取验证码</button>
+        <div class="section-title">🔑 专属开发者凭证配置</div>
+        <input type="text" id="api_id" placeholder="API_ID">
+        <input type="text" id="api_hash" placeholder="API_HASH">
+        <input type="text" id="phone" placeholder="操作账号手机号 (带国家码如 +86...)">
+        
+        <button class="btn btn-blue" id="send_btn" onclick="sendCode()">⚡ 获取验证码</button>
 
-    <div id="login_fields_area" class="login-area hidden">
-        <div style="font-size: 12px; color: #ffc107; margin-bottom: 8px;">⚠️ 请检查 Telegram 官方接收到的验证代码：</div>
-        <input type="text" id="login_code" placeholder="请输入 5 位数字验证码">
-        <input type="password" id="password" placeholder="请输入两步验证密码 (若未开启可不填)">
-        <button class="btn btn-green" onclick="login()">确认登录连接</button>
+        <div id="login_fields_area" class="login-area hidden">
+            <div style="font-size: 12px; color: #ffc107; margin-bottom: 8px;">⚠️ 请检查 Telegram 官方接收到的验证代码：</div>
+            <input type="text" id="login_code" placeholder="请输入 5 位数字验证码">
+            <input type="password" id="password" placeholder="请输入两步验证密码 (若未开启可不填)">
+            <button class="btn btn-green" onclick="login()">确认登录连接</button>
+        </div>
     </div>
 
+    <!-- 业务分配核心区：登录成功后的主视觉视角 -->
     <div class="section-title">🎯 拉人任务分配</div>
     <input type="text" id="target_group" placeholder="你的目的地群组链接">
     <input type="number" id="pull_count" placeholder="要拉取的数量" value="100">
@@ -57,21 +65,19 @@
     </div>
 
     <div class="section-title">📊 实时监控日志面板:</div>
-    <div class="log-panel" id="log_panel">正在初始化环境，等待连接后端...</div>
+    <div class="log-panel" id="log_panel">正在自动连接后端环境...</div>
 </div>
 
 <script>
-    // 💡 智能路由：如果没填，自动使用当前浏览器的域名（彻底绕过 Codespaces 的网络隔离限制）
     function getBaseUrl() {
         let url = document.getElementById('server_url').value.trim();
         if (url) {
             if (url.endsWith('/')) url = url.slice(0, -1);
             return url;
         }
-        return window.location.origin;
+        return ""; 
     }
 
-    // 自动定时刷新日志
     setInterval(async () => {
         let baseUrl = getBaseUrl();
         try {
@@ -103,7 +109,7 @@
             alert(data.message || "请求已发送");
             document.getElementById('login_fields_area').classList.remove('hidden');
         } catch (error) {
-            alert("无法连接到后端，网页调试请务必【完全留空】第一栏配置！");
+            alert("请求发送失败，请确保你的后端运行正常！");
         } finally {
             sendBtn.innerText = "⚡ 重新发送验证码";
             sendBtn.disabled = false;
@@ -112,17 +118,43 @@
 
     async function login() {
         let baseUrl = getBaseUrl();
-        let res = await fetch(`${baseUrl}/api/login`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                phone: document.getElementById('phone').value,
-                code: document.getElementById('login_code').value,
-                password: document.getElementById('password').value 
-            })
-        });
-        let data = await res.json();
-        alert(data.message);
+        try {
+            let res = await fetch(`${baseUrl}/api/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    phone: document.getElementById('phone').value,
+                    code: document.getElementById('login_code').value,
+                    password: document.getElementById('password').value 
+                })
+            });
+            let data = await res.json();
+            alert(data.message);
+            
+            // 💡 核心逻辑：登录成功后，隐藏上方凭证区，展示更换账号返回键
+            if (data.status === "success" || data.message.includes("成功")) {
+                document.getElementById('credentials_section').classList.add('hidden');
+                document.getElementById('change_account_btn').classList.remove('hidden');
+            }
+        } catch (e) {
+            alert("登录请求异常！");
+        }
+    }
+
+    // 💡 核心新增：点击“更换账户”按钮触发的界面恢复函数
+    function resetAccountView() {
+        // 1. 重新展现凭证配置区域
+        document.getElementById('credentials_section').classList.remove('hidden');
+        // 2. 隐藏自己（返回键）
+        document.getElementById('change_account_btn').classList.add('hidden');
+        // 3. 无痕一键清空验证码与两步验证框，引导重新流程
+        document.getElementById('login_code').value = "";
+        document.getElementById('password').value = "";
+        document.getElementById('login_fields_area').classList.add('hidden');
+        // 4. 打印人性化日志引导
+        let logPanel = document.getElementById('log_panel');
+        logPanel.innerText += "\n【系统提示】您已点击更换账户，请在上方重新填写并配置新的凭证参数...\n";
+        logPanel.scrollTop = logPanel.scrollHeight;
     }
 
     async function startJob() {
